@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.14;
 
 import "forge-std/Test.sol";
 
-contract ContractTest is Test {
+contract FERC721 is Test {
     function setUp() public {}
 
     function testExample() public {
