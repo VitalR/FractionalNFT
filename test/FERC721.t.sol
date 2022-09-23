@@ -5,11 +5,9 @@ import "forge-std/Test.sol";
 import "src/FERC721.sol";
 
 contract FERC721Test is Test {
-
     address owner;
     address ZERO_ADDRESS = address(0);
     address user = address(1);
-    uint256 public royaltyValue = 250;
 
     string name = "TokenName";
     string symbol = "TNS";
