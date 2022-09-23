@@ -34,6 +34,10 @@ contract TokenVault is ERC20, Ownable {
     enum State { inactive, fractionalized, live }
     State public state;
 
+    /// @notice Emitted when an NFT is transferred to the token vault NFT contract.
+    /// @param sender The address that sent the NFT.
+    event DepositedERC721(address indexed sender);
+
     /// @notice Emitted when a user successfully fractionalizes an NFT and receives the total supply of the newly created ERC20 token.
     /// @param collection The address of the newly fractionalized NFT.
     /// @param tokenId The contract address of the newly created ERC20 token.
@@ -72,7 +76,7 @@ contract TokenVault is ERC20, Ownable {
     /// @notice Configure primary sale.
     /// @param _start The start date of primary sale.
     /// @param _end The end date of primary sale.
-    /// @param _listPrice The new listing price.
+    /// @param _price The new listing price.
     function configureSale(uint _start, uint _end, uint _price) external onlyOwner {
         require(state == State.fractionalized, "The state should be fractionalized");
         require(_start >= block.timestamp, "The start primary sale should be set up");
@@ -89,7 +93,7 @@ contract TokenVault is ERC20, Ownable {
     }
 
     /// @dev Required to use safeTransferFrom() from OpenZeppelin's ERC721 contract (when transferring NFTs to this contract).
-    function onERC721Received(address, address, uint256, bytes memory) public override returns (bytes4) {
+    function onERC721Received(address, address, uint256, bytes memory) public returns (bytes4) {
         emit DepositedERC721(msg.sender);
         return
             bytes4(
