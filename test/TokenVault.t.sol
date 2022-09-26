@@ -5,6 +5,8 @@ import "forge-std/Test.sol";
 import "src/TokenVault.sol";
 import "src/FERC721.sol";
 
+import "forge-std/console.sol";
+
 contract TokenVaultTest is Test {
     address owner;
     address ZERO_ADDRESS = address(0);
@@ -67,5 +69,48 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.start(), start);
         assertEq(tokenVault.end(), 0);
         assertEq(tokenVault.listPrice(), price);
+    }
+
+    function testConfigureSaleFailsAsNotOwner() public {
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint start = block.timestamp + 1;
+        vm.prank(user);
+        vm.expectRevert("Ownable: caller is not the owner");
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), 0);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), 0);
+    }
+
+    function testPurchaseWorks() public {
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        uint8 amount = 10;
+        hoax(user, 10 ether);
+        vm.expectCall(
+            address(tokenVault), abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{value: 1000000000000000000}(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
     }
 }

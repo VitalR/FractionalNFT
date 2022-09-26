@@ -5,8 +5,9 @@ import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 
-contract TokenVault is ERC20, Ownable {
+contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice The ERC721 token address of the fractional NFT.
     address public collection;
 
@@ -42,6 +43,11 @@ contract TokenVault is ERC20, Ownable {
     /// @param collection The address of the newly fractionalized NFT.
     /// @param tokenId The contract address of the newly created ERC20 token.
     event Fractionalized(address indexed collection, uint256 indexed tokenId);
+
+    /// @notice Emitted when a user successfully purchase some amount of NFT fractions.
+    /// @param buyer The buyer of the fractions.
+    /// @param amount The amount of bought fractions.
+    event Purchased(address buyer, uint256 amount);
 
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         require(_curator != address(0), "ANG: zero address not allowed");
@@ -85,6 +91,24 @@ contract TokenVault is ERC20, Ownable {
         end = _end;
         listPrice = _price;
         state = State.live;
+    }
+
+    /// @notice Allows an account to purchase vault fraction tokens.
+    /// @param _amount The amount of the fractions of fractional nft.
+    function purchase(uint256 _amount) external payable nonReentrant {
+        require(state == State.live, "The state should be fractionalized");
+        require((_amount * listPrice) == msg.value, "Not enough ether sent");
+        require(block.timestamp >= start, "The primary sale is not started");
+
+        if (end > 0) {
+            require(block.timestamp < end, "The primary sale is already finished");
+        }
+
+        uint256 _supply = balanceOf(address(this));
+        require(_amount <= _supply, "Exceeds the total supply");
+        _transfer(address(this), _msgSender(), _amount);
+
+        emit Purchased(_msgSender(), _amount);
     }
 
     /// @dev Returns the number of decimals used to get its user representation.
