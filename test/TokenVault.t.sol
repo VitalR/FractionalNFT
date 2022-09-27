@@ -24,6 +24,7 @@ contract TokenVaultTest is Test {
     TokenVault public tokenVault;
 
     event Fractionalized(address indexed collection, address indexed token);
+    event Redeemed(address indexed sender, address indexed collection, uint indexed tokenId);
 
     function setUp() public {
         owner = address(this);
@@ -204,5 +205,45 @@ contract TokenVaultTest is Test {
         tokenVault.purchase{value: 10100000000000000000}(amount);
         assertEq(tokenVault.balanceOf(address(user)), 0);
         assertEq(tokenVault.balanceOf(address(tokenVault)), supply);
+    }
+
+    function testRedeemWorks() public {
+        supply = 100;
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        uint8 amount = 100;
+        hoax(user, 10 ether);
+        vm.expectCall(
+            address(tokenVault), abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{value: 10000000000000000000}(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(user)), tokenVault.totalSupply());
+        assertEq(tokenVault.balanceOf(address(tokenVault)), 0);
+
+        vm.prank(user);
+        tokenVault.approve(address(this), amount);
+        vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit Redeemed(address(user), address(collection), tokenId);
+        tokenVault.redeem();
+        assertEq(collection.balanceOf(address(user)), 1);
+        assertEq(tokenVault.balanceOf(address(user)), 0);
     }
 }

@@ -32,7 +32,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice A boolean to indicate if the vault has closed.
     bool public vaultClosed;
 
-    enum State { inactive, fractionalized, live }
+    enum State { inactive, fractionalized, live, redeemed }
     State public state;
 
     /// @notice Emitted when an NFT is transferred to the token vault NFT contract.
@@ -41,13 +41,19 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
 
     /// @notice Emitted when a user successfully fractionalizes an NFT and receives the total supply of the newly created ERC20 token.
     /// @param collection The address of the newly fractionalized NFT.
-    /// @param tokenId The contract address of the newly created ERC20 token.
-    event Fractionalized(address indexed collection, uint256 indexed tokenId);
+    /// @param token The contract address of the newly created ERC20 token.
+    event Fractionalized(address indexed collection, address indexed token);
 
     /// @notice Emitted when a user successfully purchase some amount of NFT fractions.
     /// @param buyer The buyer of the fractions.
     /// @param amount The amount of bought fractions.
     event Purchased(address buyer, uint256 amount);
+
+    /// @notice Emitted when a user successfully redeems an NFT in exchange for the total ERC20 supply.
+    /// @param sender The address that redeemed the NFT (i.e., the address that called redeem()).
+    /// @param collection The address of fractionalized NFT.
+    /// @param tokenId The token Id of fractionalized NFT.
+    event Redeemed(address indexed sender, address indexed collection, uint indexed tokenId);
 
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         require(_curator != address(0), "ANG: zero address not allowed");
@@ -76,7 +82,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         _mint(curator, _supply);
         state = State.fractionalized;
 
-        emit Fractionalized(collection, tokenId);
+        emit Fractionalized(collection, address(this));
     }
 
     /// @notice Configure primary sale.
@@ -109,6 +115,19 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         _transfer(address(this), _msgSender(), _amount);
 
         emit Purchased(_msgSender(), _amount);
+    }
+
+    /// @notice A holder of the entire ERC20 supply can call redeem in order to receive the underlying NFT from the contract. 
+    ///         The ERC20 tokens get transferred to the contract address.
+    /// @dev Note, the ERC20 must be approved for transfer by the TokenVault contract before calling redeem().
+    function redeem() public {
+        uint redeemerBalance = IERC20(address(this)).balanceOf(_msgSender());
+        require(redeemerBalance == IERC20(address(this)).totalSupply(), "Redeemer does not hold the entire supply");
+        state = State.redeemed;
+        _transfer(_msgSender(), address(this), redeemerBalance);
+        IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
+
+        emit Redeemed(_msgSender(), collection, tokenId);
     }
 
     /// @dev Returns the number of decimals used to get its user representation.
