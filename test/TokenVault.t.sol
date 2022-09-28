@@ -25,6 +25,7 @@ contract TokenVaultTest is Test {
 
     event Fractionalized(address indexed collection, address indexed token);
     event Redeemed(address indexed sender, address indexed collection, uint indexed tokenId);
+    event BoughtOut(address indexed sender, address collection, uint indexed tokenId);
 
     function setUp() public {
         owner = address(this);
@@ -237,13 +238,53 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.balanceOf(address(user)), tokenVault.totalSupply());
         assertEq(tokenVault.balanceOf(address(tokenVault)), 0);
 
-        vm.prank(user);
+        vm.startPrank(user);
         tokenVault.approve(address(this), amount);
-        vm.prank(user);
+        // vm.prank(user);
         vm.expectEmit(true, true, true, true);
         emit Redeemed(address(user), address(collection), tokenId);
         tokenVault.redeem();
         assertEq(collection.balanceOf(address(user)), 1);
         assertEq(tokenVault.balanceOf(address(user)), 0);
+        assertEq(tokenVault.totalSupply(), 0);
+    }
+
+    function testBuyoutWorks() public {
+        supply = 100;
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        hoax(user, 10 ether);
+        vm.expectEmit(true, true, true, true);
+        emit BoughtOut(address(user), address(collection), tokenId);
+        tokenVault.buyout{value: 10 ether}();
+        assertEq(collection.balanceOf(address(user)), 1);
+        assertEq(address(tokenVault).balance, 10 ether);
+    }
+
+    function testBuyoutFails() public {
+        supply = 100;
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        hoax(user, 10 ether);
+        vm.expectRevert("Sender sent less than the buyout price");
+        tokenVault.buyout{value: 9 ether}();
+        assertEq(collection.balanceOf(address(user)), 0);
+        assertEq(address(tokenVault).balance, 0);
     }
 }

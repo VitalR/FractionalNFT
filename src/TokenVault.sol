@@ -32,7 +32,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice A boolean to indicate if the vault has closed.
     bool public vaultClosed;
 
-    enum State { inactive, fractionalized, live, redeemed }
+    enum State { inactive, fractionalized, live, redeemed, boughtOut }
     State public state;
 
     /// @notice Emitted when an NFT is transferred to the token vault NFT contract.
@@ -54,6 +54,12 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @param collection The address of fractionalized NFT.
     /// @param tokenId The token Id of fractionalized NFT.
     event Redeemed(address indexed sender, address indexed collection, uint indexed tokenId);
+
+    /// @notice Emitted when a user successfully buys an NFT from the FractionalizeNFT contract.
+    /// @param sender The address that bought the NFT (i.e., the address that called buyout()).
+    /// @param collection The address of fractionalized NFT.
+    /// @param tokenId The token Id of fractionalized NFT.
+    event BoughtOut(address indexed sender, address collection, uint indexed tokenId);
 
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         require(_curator != address(0), "ANG: zero address not allowed");
@@ -88,7 +94,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice Configure primary sale.
     /// @param _start The start date of primary sale.
     /// @param _end The end date of primary sale.
-    /// @param _price The new listing price.
+    /// @param _price The new listing price per fraction.
     function configureSale(uint _start, uint _end, uint _price) external onlyOwner {
         require(state == State.fractionalized, "The state should be fractionalized");
         require(_start >= block.timestamp, "The start primary sale should be set up");
@@ -118,16 +124,29 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     }
 
     /// @notice A holder of the entire ERC20 supply can call redeem in order to receive the underlying NFT from the contract. 
-    ///         The ERC20 tokens get transferred to the contract address.
+    ///         The function burns all shares and transfers the vault NFT to the user.
     /// @dev Note, the ERC20 must be approved for transfer by the TokenVault contract before calling redeem().
     function redeem() public {
+        // require(state == State.inactive, "No redeeming");
         uint redeemerBalance = IERC20(address(this)).balanceOf(_msgSender());
         require(redeemerBalance == IERC20(address(this)).totalSupply(), "Redeemer does not hold the entire supply");
         state = State.redeemed;
-        _transfer(_msgSender(), address(this), redeemerBalance);
+        // _transfer(_msgSender(), address(this), redeemerBalance);
+        _burn(_msgSender(), totalSupply());
         IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
 
         emit Redeemed(_msgSender(), collection, tokenId);
+    }
+
+    /// @notice Allows an account to buy the NFT from the contract for the specified buyout price.
+    function buyout() public payable {
+        uint fractionAmount = totalSupply();
+        uint buyoutPrice = listPrice * fractionAmount;
+        require(msg.value >= buyoutPrice, "Sender sent less than the buyout price");
+        state = State.boughtOut;
+        IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
+
+        emit BoughtOut(_msgSender(), collection, tokenId);
     }
 
     /// @dev Returns the number of decimals used to get its user representation.
