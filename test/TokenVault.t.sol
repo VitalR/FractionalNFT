@@ -26,6 +26,7 @@ contract TokenVaultTest is Test {
     event Fractionalized(address indexed collection, address indexed token);
     event Redeemed(address indexed sender, address indexed collection, uint indexed tokenId);
     event BoughtOut(address indexed sender, address collection, uint indexed tokenId);
+    event Claimed(address indexed sender, uint indexed amount);
 
     function setUp() public {
         owner = address(this);
@@ -286,5 +287,56 @@ contract TokenVaultTest is Test {
         tokenVault.buyout{value: 9 ether}();
         assertEq(collection.balanceOf(address(user)), 0);
         assertEq(address(tokenVault).balance, 0);
+    }
+
+    function testClaimWorks() public {
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        uint8 amount = 10;
+        hoax(user, 10 ether);
+        vm.expectCall(
+            address(tokenVault), abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{value: 1 ether}(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
+
+        hoax(curator, 100 ether);
+        vm.expectEmit(true, true, true, true);
+        emit BoughtOut(address(curator), address(collection), tokenId);
+        tokenVault.buyout{value: 100 ether}();
+        assertEq(collection.balanceOf(address(curator)), 1);
+        assertEq(address(tokenVault).balance, 101 ether);
+
+        vm.startPrank(user);
+        uint userPreBalance = address(user).balance;
+        uint claimerBalance = tokenVault.balanceOf(address(user));
+        console.log(claimerBalance);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        uint fractionsAmount = tokenVault.totalSupply();
+        uint buyoutPrice = price * fractionsAmount;
+        uint claimAmountWei = (buyoutPrice * amount) / fractionsAmount;
+        vm.expectEmit(true, true, false, false);
+        emit Claimed(address(user), claimAmountWei);
+        tokenVault.claim();
+        uint userPostBalance = address(user).balance;
+        assertEq(userPostBalance, userPreBalance + claimAmountWei);
+        assertEq(tokenVault.balanceOf(address(user)), 0);
     }
 }

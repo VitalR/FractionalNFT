@@ -61,6 +61,11 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @param tokenId The token Id of fractionalized NFT.
     event BoughtOut(address indexed sender, address collection, uint indexed tokenId);
 
+    /// @notice Emitted when a user successfully claims a payout following the buyout of an NFT from the FractionalizeNFT contract.
+    /// @param sender The address that the user held ERC20 tokens for (i.e., the address that called claim()).
+    /// @param amount The amount of ether claimded.
+    event Claimed(address indexed sender, uint256 indexed amount);
+
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         require(_curator != address(0), "ANG: zero address not allowed");
         curator = _curator;
@@ -81,7 +86,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         uint256 _tokenId,
         uint256 _supply
     ) public onlyOwner {
-        require(state == State.inactive, "ANG: state should be inactive");
+        require(state == State.inactive, "State should be inactive");
         collection = _collection;
         tokenId = _tokenId;
         IERC721(collection).safeTransferFrom(_from, address(this), _tokenId);
@@ -140,14 +145,33 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
 
     /// @notice Allows an account to buy the NFT from the contract for the specified buyout price.
     function buyout() public payable {
-        uint fractionAmount = totalSupply();
-        uint buyoutPrice = listPrice * fractionAmount;
+        uint fractionsAmount = totalSupply();
+        uint buyoutPrice = listPrice * fractionsAmount;
         require(msg.value >= buyoutPrice, "Sender sent less than the buyout price");
         state = State.boughtOut;
         IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
 
         emit BoughtOut(_msgSender(), collection, tokenId);
     }
+
+    /// @notice Allows a holder of the ERC20 tokens to claim his share of the sale proceedings (in ether) following a buyout of the fractionalized NFT.
+    /// @dev Note, the ERC20 must be approved for transfer by the TokenVault contract before calling claim().
+    function claim() public {
+        require(state == State.boughtOut, "Fractionalized NFT has not been bought out");
+        uint claimerBalance = balanceOf(_msgSender());
+        require(claimerBalance > 0, "Claimer does not hold any tokens");
+        // _transfer(_msgSender, address(this), claimerBalance);
+        
+        uint fractionsAmount = totalSupply();
+        uint buyoutPrice = listPrice * fractionsAmount;
+        uint claimAmountWei = (buyoutPrice * claimerBalance) / fractionsAmount;
+        _burn(_msgSender(), claimerBalance);
+        (bool success, ) = payable(_msgSender()).call{value: claimAmountWei}("");
+        require(success, "Claim failed");
+
+        emit Claimed(_msgSender(), claimAmountWei);
+    }
+
 
     /// @dev Returns the number of decimals used to get its user representation.
     function decimals() public view virtual override returns (uint8) {
