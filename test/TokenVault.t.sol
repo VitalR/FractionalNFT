@@ -5,8 +5,6 @@ import "forge-std/Test.sol";
 import "src/TokenVault.sol";
 import "src/FERC721.sol";
 
-import "forge-std/console.sol";
-
 contract TokenVaultTest is Test {
     address owner;
     address ZERO_ADDRESS = address(0);
@@ -338,5 +336,53 @@ contract TokenVaultTest is Test {
         uint userPostBalance = address(user).balance;
         assertEq(userPostBalance, userPreBalance + claimAmountWei);
         assertEq(tokenVault.balanceOf(address(user)), 0);
+    }
+
+    function testClaimFailsAsNoTokens() public {
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        uint8 amount = 10;
+        hoax(user, 10 ether);
+        tokenVault.purchase{value: 1 ether}(amount);
+
+        hoax(curator, 100 ether);
+        tokenVault.buyout{value: 100 ether}();
+
+        vm.startPrank(owner);
+        uint claimerBalance = tokenVault.balanceOf(address(owner));
+        console.log(claimerBalance);
+        vm.expectRevert("Claimer does not hold any tokens");
+        tokenVault.claim();
+    }
+
+    function testClaimFailsAsNoBuyout() public {
+        vm.prank(owner);
+        collection.mintTo(address(tokenVault));
+        tokenVault.fractionalize(address(tokenVault), address(collection), tokenId, supply);
+        uint start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+
+        vm.prank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+
+        vm.warp(start + 5);
+        uint8 amount = 10;
+        hoax(user, 10 ether);
+        tokenVault.purchase{value: 1 ether}(amount);
+
+        // hoax(curator, 100 ether);
+        // tokenVault.buyout{value: 100 ether}();
+
+        vm.startPrank(owner);
+        vm.expectRevert("Fractionalized NFT has not been bought out");
+        tokenVault.claim();
     }
 }
