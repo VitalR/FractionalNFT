@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
+import 'lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol';
 import './IERC2981.sol';
 
 /// @dev This is a contract used to add ERC2981 support to ERC721 and 1155
