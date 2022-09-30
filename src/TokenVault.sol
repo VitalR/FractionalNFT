@@ -32,13 +32,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice A boolean to indicate if the vault has closed.
     bool public vaultClosed;
 
-    enum State {
-        inactive,
-        fractionalized,
-        live,
-        redeemed,
-        boughtOut
-    }
+    enum State { inactive, fractionalized, live, redeemed, boughtOut }
     State public state;
 
     /// @notice Emitted when an NFT is transferred to the token vault NFT contract.
@@ -59,33 +53,20 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @param sender The address that redeemed the NFT (i.e., the address that called redeem()).
     /// @param collection The address of fractionalized NFT.
     /// @param tokenId The token Id of fractionalized NFT.
-    event Redeemed(
-        address indexed sender,
-        address indexed collection,
-        uint256 indexed tokenId
-    );
+    event Redeemed(address indexed sender, address indexed collection, uint256 indexed tokenId);
 
     /// @notice Emitted when a user successfully buys an NFT from the FractionalizeNFT contract.
     /// @param sender The address that bought the NFT (i.e., the address that called buyout()).
     /// @param collection The address of fractionalized NFT.
     /// @param tokenId The token Id of fractionalized NFT.
-    event BoughtOut(
-        address indexed sender,
-        address collection,
-        uint256 indexed tokenId
-    );
+    event BoughtOut(address indexed sender, address collection, uint256 indexed tokenId);
 
     /// @notice Emitted when a user successfully claims a payout following the buyout of an NFT from the FractionalizeNFT contract.
     /// @param sender The address that the user held ERC20 tokens for (i.e., the address that called claim()).
     /// @param amount The amount of ether claimded.
     event Claimed(address indexed sender, uint256 indexed amount);
 
-    constructor(
-        address _curator,
-        uint256 _fee,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) {
+    constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         require(_curator != address(0), "ANG: zero address not allowed");
         curator = _curator;
         fee = _fee;
@@ -104,7 +85,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         address _collection,
         uint256 _tokenId,
         uint256 _supply
-    ) public onlyOwner {
+    ) external onlyOwner {
         require(state == State.inactive, "State should be inactive");
         collection = _collection;
         tokenId = _tokenId;
@@ -119,19 +100,9 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @param _start The start date of primary sale.
     /// @param _end The end date of primary sale.
     /// @param _price The new listing price per fraction.
-    function configureSale(
-        uint256 _start,
-        uint256 _end,
-        uint256 _price
-    ) external onlyOwner {
-        require(
-            state == State.fractionalized,
-            "The state should be fractionalized"
-        );
-        require(
-            _start >= block.timestamp,
-            "The start primary sale should be set up"
-        );
+    function configureSale(uint256 _start, uint256 _end, uint256 _price) external onlyOwner {
+        require(state == State.fractionalized, "The state should be fractionalized");
+        require(_start >= block.timestamp, "The start primary sale should be set up");
         require(_price > 0, "The listing price should be > 0");
         start = _start;
         end = _end;
@@ -145,14 +116,9 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         require(state == State.live, "The state should be fractionalized");
         require((_amount * listPrice) == msg.value, "Not enough ether sent");
         require(block.timestamp >= start, "The primary sale is not started");
-
         if (end > 0) {
-            require(
-                block.timestamp < end,
-                "The primary sale is already finished"
-            );
+            require(block.timestamp < end, "The primary sale is already finished");
         }
-
         uint256 _supply = balanceOf(address(this));
         require(_amount <= _supply, "Exceeds the total supply");
         _transfer(address(this), _msgSender(), _amount);
@@ -163,7 +129,7 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice A holder of the entire ERC20 supply can call redeem in order to receive the underlying NFT from the contract.
     ///         The function burns all shares and transfers the vault NFT to the user.
     /// @dev Note, the ERC20 must be approved for transfer by the TokenVault contract before calling redeem().
-    function redeem() public {
+    function redeem() external {
         // require(state == State.inactive, "No redeeming");
         uint256 redeemerBalance = IERC20(address(this)).balanceOf(_msgSender());
         require(
@@ -173,52 +139,35 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
         state = State.redeemed;
         // _transfer(_msgSender(), address(this), redeemerBalance);
         _burn(_msgSender(), totalSupply());
-        IERC721(collection).safeTransferFrom(
-            address(this),
-            _msgSender(),
-            tokenId
-        );
+        IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
 
         emit Redeemed(_msgSender(), collection, tokenId);
     }
 
     /// @notice Allows an account to buy the NFT from the contract for the specified buyout price.
-    function buyout() public payable {
+    function buyout() external payable {
         uint256 fractionsAmount = totalSupply();
         uint256 buyoutPrice = reservePrice();
-        require(
-            msg.value >= buyoutPrice,
-            "Sender sent less than the buyout price"
-        );
+        require(msg.value >= buyoutPrice, "Sender sent less than the buyout price");
         state = State.boughtOut;
-        IERC721(collection).safeTransferFrom(
-            address(this),
-            _msgSender(),
-            tokenId
-        );
+        IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
 
         emit BoughtOut(_msgSender(), collection, tokenId);
     }
 
     /// @notice Allows a holder of the ERC20 tokens to claim his share of the sale proceedings (in ether) following a buyout of the fractionalized NFT.
     /// @dev Note, the ERC20 must be approved for transfer by the TokenVault contract before calling claim().
-    function claim() public {
-        require(
-            state == State.boughtOut,
-            "Fractionalized NFT has not been bought out"
-        );
+    function claim() external {
+        require(state == State.boughtOut, "Fractionalized NFT has not been bought out");
         uint256 claimerBalance = balanceOf(_msgSender());
         require(claimerBalance > 0, "Claimer does not hold any tokens");
         // _transfer(_msgSender, address(this), claimerBalance);
 
         uint256 fractionsAmount = totalSupply();
         uint256 buyoutPrice = reservePrice();
-        uint256 claimAmountWei = (buyoutPrice * claimerBalance) /
-            fractionsAmount;
+        uint256 claimAmountWei = (buyoutPrice * claimerBalance) / fractionsAmount;
         _burn(_msgSender(), claimerBalance);
-        (bool success, ) = payable(_msgSender()).call{value: claimAmountWei}(
-            ""
-        );
+        (bool success, ) = payable(_msgSender()).call{value: claimAmountWei}("");
         require(success, "Claim failed");
 
         emit Claimed(_msgSender(), claimAmountWei);
