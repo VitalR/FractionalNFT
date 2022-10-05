@@ -1,25 +1,21 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "lib/openzeppelin-contracts/contracts/utils/Address.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC1155/IERC1155Receiver.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 
 // Fractional NFT tokens that trade as both ERC20 and ERC1155 tokens
 contract FractionalNFT is IERC20, IERC1155, ERC165 {
     using Address for address;
 
-    // ERC20 metadata
     string public name;
     string public symbol;
     uint8 constant public decimals = 0;
 
-    address owner;
-
-    // ERC1155 metadata
     string private _uri;
 
     // ERC20 storage
@@ -40,10 +36,6 @@ contract FractionalNFT is IERC20, IERC1155, ERC165 {
     function _setURI(string memory newuri) internal {
         _uri = newuri;
     }
-
-    // function setBaseURI(string calldata newuri) external {
-    //     _setURI(newuri);
-    // }
 
     function totalSupply() public override view returns(uint256) {
         return supply;
@@ -88,27 +80,31 @@ contract FractionalNFT is IERC20, IERC1155, ERC165 {
     }
 
     function transfer(address to, uint256 amount) external override returns (bool) {
-        require(to != address(0), "ERC20: sending address 0");
+        require(to != address(0), "ERC20: transfer to the zero address");
         _beforeTokenTransfer(msg.sender, to, amount);
+
+        balance[msg.sender] -= amount;
         unchecked {
-            balance[msg.sender] -= amount;
+            balance[to] += amount;    
         }
-        balance[to] += amount;
+        
         emit Transfer(msg.sender, to, amount);
         emit TransferSingle(msg.sender, msg.sender, to, 0, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
-        require(to != address(0), "ERC20: sending address 0");
+        require(to != address(0), "ERC20: transfer to the zero address");
         _beforeTokenTransfer(from, to, amount);
+
         if (from != msg.sender && allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }
+        balance[from] -= amount;
         unchecked {
-            balance[from] -= amount;    
+            balance[to] += amount;
         }
-        balance[to] += amount;
+
         emit Transfer(from, to, amount);
         emit TransferSingle(msg.sender, from, to, 0, amount);
         return true;
@@ -127,29 +123,31 @@ contract FractionalNFT is IERC20, IERC1155, ERC165 {
         transferFrom(from, to, amounts[0]);
     }
 
-    // function mint(address to, uint amount) external {
-    //     _mint(to, amount);
-    // }
-
-    function _mint(address to, uint256 amount) internal returns (bool) {
-        _beforeTokenTransfer(address(0), to, amount);
-        balance[to] += amount;
-        supply += amount;
-        emit Transfer(address(0), to, amount);
-        emit TransferSingle(msg.sender, address(0), to, 0, amount);
-        return true;
+    function _transfer(address from, address to, uint256 amount) internal {
+        balance[from] -= amount;
+        unchecked {
+            balance[to] += amount;
+        }
+        emit Transfer(from, to, amount);
+        emit TransferSingle(msg.sender, from, to, 0, amount);
     }
 
-    // function burn(address from, uint amount) external {
-    //     _burn(from, amount);
-    // }
+    function _mint(address to, uint256 amount) internal {
+        _beforeTokenTransfer(address(0), to, amount);
+        supply += amount;
+        unchecked {
+            balance[to] += amount;
+        }
+        emit Transfer(address(0), to, amount);
+        emit TransferSingle(msg.sender, address(0), to, 0, amount);
+    }
 
     function _burn(address from, uint256 amount) internal {
         _beforeTokenTransfer(from, address(0), amount);
+        balance[from] -= amount;    
         unchecked {
-            balance[from] -= amount;    
+            supply -= amount;    
         } 
-        supply -= amount;
         emit Transfer(from, address(0), amount);
         emit TransferSingle(msg.sender, from, address(0), 0, amount);
     }
