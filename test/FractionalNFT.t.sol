@@ -3,6 +3,8 @@ pragma solidity ^0.8.14;
 
 import "forge-std/Test.sol";
 import "./mocks/MockFractionalNFT.sol";
+import "./utils/DSTestPlus.sol";
+import "./utils/DSInvariantTest.sol";
 
 contract FractionalNFTTest is Test {
     string name = "Vault Token Name";
@@ -256,5 +258,60 @@ contract FractionalNFTTest is Test {
         fractional.approve(address(this), sendAmount);
 
         fractional.transferFrom(from, to, sendAmount);
+    }
+}
+
+contract ERC20Invariants is DSTestPlus, DSInvariantTest {
+    BalanceSum balanceSum;
+    MockFractionalNFT fractional;
+
+    function setUp() public {
+        fractional = new MockFractionalNFT("Token", "TKN", "tokenUri");
+        balanceSum = new BalanceSum(fractional);
+
+        addTargetContract(address(balanceSum));
+    }
+
+    function invariantBalanceSum() public {
+        assertEq(fractional.totalSupply(), balanceSum.sum());
+    }
+
+    function testInvariantBalanceSum() public {
+        assertEq(fractional.totalSupply(), balanceSum.sum());
+    }
+}
+
+contract BalanceSum {
+    MockFractionalNFT fractional;
+    uint256 public sum;
+
+    constructor(MockFractionalNFT _token) {
+        fractional = _token;
+    }
+
+    function mint(address from, uint256 amount) public {
+        fractional.mint(from, amount);
+        sum += amount;
+    }
+
+    function burn(address from, uint256 amount) public {
+        fractional.burn(from, amount);
+        sum -= amount;
+    }
+
+    function approve(address to, uint256 amount) public {
+        fractional.approve(to, amount);
+    }
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public {
+        fractional.transferFrom(from, to, amount);
+    }
+
+    function transfer(address to, uint256 amount) public {
+        fractional.transfer(to, amount);
     }
 }
