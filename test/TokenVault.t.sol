@@ -38,7 +38,7 @@ contract TokenVaultTest is Test {
     function setUp() public {
         owner = address(this);
         collection = new NFTCollection();
-        tokenVault = new TokenVault(curator, fee, name, symbol);
+        tokenVault = new TokenVault(curator, fee, name, symbol, tokenUri);
     }
 
     function testInitialState() public {

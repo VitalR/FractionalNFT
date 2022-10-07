@@ -2,12 +2,12 @@
 pragma solidity ^0.8.14;
 
 import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import "./FractionalNFT.sol";
 
-contract TokenVault is ERC20, Ownable, ReentrancyGuard {
+contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     /// @notice The ERC721 token address of the fractional NFT.
     address public collection;
 
@@ -66,8 +66,8 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @param amount The amount of ether claimded.
     event Claimed(address indexed sender, uint256 indexed amount);
 
-    constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
-        require(_curator != address(0), "ANG: zero address not allowed");
+    constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol, string memory _uri) FractionalNFT(_name, _symbol, _uri) {
+        require(_curator != address(0), "Set the zero address");
         curator = _curator;
         fee = _fee;
         state = State.inactive;
@@ -176,11 +176,6 @@ contract TokenVault is ERC20, Ownable, ReentrancyGuard {
     /// @dev Returns the reserve price of Fractional NFT.
     function reservePrice() public view returns (uint256) {
         return listPrice * totalSupply();
-    }
-
-    /// @dev Returns the number of decimals used to get its user representation.
-    function decimals() public view virtual override returns (uint8) {
-        return 0;
     }
 
     /// @dev Required to use safeTransferFrom() from OpenZeppelin's ERC721 contract (when transferring NFTs to this contract).
