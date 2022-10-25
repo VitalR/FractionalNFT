@@ -12,16 +12,24 @@ import "lib/openzeppelin-contracts/contracts/token/ERC1155/extensions/IERC1155Me
 contract FractionalNFT is ERC20, IERC1155, ERC165 {
     using Address for address;
 
-    // ERC20 storage
+    /// @dev ERC20 storage
     uint256 internal supply;
     mapping(address => uint256) internal balance;
     mapping(address => mapping(address => uint256)) private _allowance;
 
-    // Used as the URI for all tokens
+    /// @dev Used as the URI for all tokens
     string private _uri;
+
+    /// @dev EIP-2612 storage
+    uint256 internal immutable INITIAL_CHAIN_ID;
+    bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
+    mapping(address => uint256) public nonces;
 
     constructor(string memory name, string memory symbol, string memory uri_) ERC20(name, symbol) {
         _setURI(uri_);
+
+        INITIAL_CHAIN_ID = block.chainid;
+        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
     }
 
     function uri(uint256) public view returns (string memory) {
@@ -234,5 +242,69 @@ contract FractionalNFT is ERC20, IERC1155, ERC165 {
             interfaceId == type(IERC1155).interfaceId ||
             interfaceId == type(IERC1155MetadataURI).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    /// @dev EIP-2612 logic
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public virtual {
+        require(deadline >= block.timestamp, "ANG: permit deadline expired");
+
+        // Unchecked because the only math done is incrementing
+        // the owner's nonce which cannot realistically overflow.
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                owner,
+                                spender,
+                                value,
+                                nonces[owner]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+
+            require(recoveredAddress != address(0) && recoveredAddress == owner, "ANG: invalid signer");
+
+            _allowance[recoveredAddress][spender] = value;
+        }
+
+        emit Approval(owner, spender, value);
+    }
+
+    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
+    }
+
+    function computeDomainSeparator() internal view virtual returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                    keccak256(bytes(name())),
+                    keccak256("1"),
+                    block.chainid,
+                    address(this)
+                )
+            );
     }
 }
