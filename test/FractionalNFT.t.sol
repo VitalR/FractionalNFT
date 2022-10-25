@@ -5,12 +5,16 @@ import "forge-std/Test.sol";
 import "./mocks/MockFractionalNFT.sol";
 import "./utils/DSTestPlus.sol";
 import "./utils/DSInvariantTest.sol";
+import "./utils/Hevm.sol";
 
 contract FractionalNFTTest is Test {
     string name = "Vault Token Name";
-    string symbol = "VTB";
+    string symbol = "VTS";
     string uri = "tokenUri";
     MockFractionalNFT public fractional;
+
+    bytes32 constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     function setUp() public {
         fractional = new MockFractionalNFT(name, symbol, uri);
@@ -313,5 +317,99 @@ contract BalanceSum {
 
     function transfer(address to, uint256 amount) public {
         fractional.transfer(to, amount);
+    }
+
+    function testPermit() public {
+        uint256 privateKey = 0xBEEF;
+        address owner = vm.addr(privateKey);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    fractional.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, address(0xCAFE), 1e18, 0, block.timestamp))
+                )
+            )
+        );
+
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp, v, r, s);
+
+        assertEq(fractional.allowance(owner, address(0xCAFE)), 1e18);
+        assertEq(fractional.nonces(owner), 1);
+    }
+
+    function testFailPermitBadNonce() public {
+        uint256 privateKey = 0xBEEF;
+        address owner = vm.addr(privateKey);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    fractional.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, address(0xCAFE), 1e18, 1, block.timestamp))
+                )
+            )
+        );
+
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp, v, r, s);
+    }
+
+    function testFailPermitBadDeadline() public {
+        uint256 privateKey = 0xBEEF;
+        address owner = vm.addr(privateKey);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    fractional.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, address(0xCAFE), 1e18, 0, block.timestamp))
+                )
+            )
+        );
+
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp + 1, v, r, s);
+    }
+
+    function testFailPermitPastDeadline() public {
+        uint256 privateKey = 0xBEEF;
+        address owner = vm.addr(privateKey);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    fractional.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, address(0xCAFE), 1e18, 0, block.timestamp - 1))
+                )
+            )
+        );
+
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp - 1, v, r, s);
+    }
+
+    function testFailPermitReplay() public {
+        uint256 privateKey = 0xBEEF;
+        address owner = vm.addr(privateKey);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    fractional.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, address(0xCAFE), 1e18, 0, block.timestamp))
+                )
+            )
+        );
+
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp, v, r, s);
+        fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp, v, r, s);
     }
 }
