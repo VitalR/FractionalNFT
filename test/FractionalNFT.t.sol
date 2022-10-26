@@ -7,6 +7,9 @@ import "./utils/DSTestPlus.sol";
 import "./utils/DSInvariantTest.sol";
 import "./utils/Hevm.sol";
 
+import "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
+import "lib/openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Receiver.sol";
+
 contract FractionalNFTTest is Test {
     string name = "Vault Token Name";
     string symbol = "VTS";
@@ -74,6 +77,41 @@ contract FractionalNFTTest is Test {
 
         assertEq(fractional.balanceOf(from), 0);
         assertEq(fractional.balanceOf(address(0xBEEF)), 1e18);
+    }
+
+    function testSafeTransferFromToEOA() public {
+        address from = address(0xABCD);
+
+        fractional.mint(from, 1e18);
+
+        vm.prank(from);
+        fractional.setApprovalForAll(address(this), true);
+
+        fractional.safeTransferFrom(from, address(0xBEEF), 0, 1e18, "");
+
+        assertEq(fractional.balanceOf(address(0xBEEF), 0), 1e18);
+        assertEq(fractional.balanceOf(from, 0), 0);
+    }
+
+    function testSafeTransferFromToERC1155Recipient() public {
+        ERC1155Recipient to = new ERC1155Recipient();
+
+        address from = address(0xABCD);
+
+        fractional.mint(from, 1e18);
+
+        vm.prank(from);
+        fractional.setApprovalForAll(address(this), true);
+
+        fractional.safeTransferFrom(from, address(to), 0, 1e18, "testing 123");
+
+        assertEq(to.operator(), address(this));
+        assertEq(to.from(), from);
+        assertEq(to.id(), 0);
+        // assertBytesEq(to.mintData(), "testing 123");
+
+        assertEq(fractional.balanceOf(address(to), 0), 1e18);
+        assertEq(fractional.balanceOf(from, 0), 0);
     }
 
     function testInfiniteApproveTransferFrom() public {
@@ -263,63 +301,8 @@ contract FractionalNFTTest is Test {
 
         fractional.transferFrom(from, to, sendAmount);
     }
-}
 
-contract ERC20Invariants is DSTestPlus, DSInvariantTest {
-    BalanceSum balanceSum;
-    MockFractionalNFT fractional;
-
-    function setUp() public {
-        fractional = new MockFractionalNFT("Token", "TKN", "tokenUri");
-        balanceSum = new BalanceSum(fractional);
-
-        addTargetContract(address(balanceSum));
-    }
-
-    function invariantBalanceSum() public {
-        assertEq(fractional.totalSupply(), balanceSum.sum());
-    }
-
-    function testInvariantBalanceSum() public {
-        assertEq(fractional.totalSupply(), balanceSum.sum());
-    }
-}
-
-contract BalanceSum {
-    MockFractionalNFT fractional;
-    uint256 public sum;
-
-    constructor(MockFractionalNFT _token) {
-        fractional = _token;
-    }
-
-    function mint(address from, uint256 amount) public {
-        fractional.mint(from, amount);
-        sum += amount;
-    }
-
-    function burn(address from, uint256 amount) public {
-        fractional.burn(from, amount);
-        sum -= amount;
-    }
-
-    function approve(address to, uint256 amount) public {
-        fractional.approve(to, amount);
-    }
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public {
-        fractional.transferFrom(from, to, amount);
-    }
-
-    function transfer(address to, uint256 amount) public {
-        fractional.transfer(to, amount);
-    }
-
-    function testPermit() public {
+   function testPermit() public {
         uint256 privateKey = 0xBEEF;
         address owner = vm.addr(privateKey);
 
@@ -413,3 +396,115 @@ contract BalanceSum {
         fractional.permit(owner, address(0xCAFE), 1e18, block.timestamp, v, r, s);
     }
 }
+
+contract ERC20Invariants is DSTestPlus, DSInvariantTest {
+    BalanceSum balanceSum;
+    MockFractionalNFT fractional;
+
+    function setUp() public {
+        fractional = new MockFractionalNFT("Token", "TKN", "tokenUri");
+        balanceSum = new BalanceSum(fractional);
+
+        addTargetContract(address(balanceSum));
+    }
+
+    function invariantBalanceSum() public {
+        assertEq(fractional.totalSupply(), balanceSum.sum());
+    }
+
+    function testInvariantBalanceSum() public {
+        assertEq(fractional.totalSupply(), balanceSum.sum());
+    }
+}
+
+contract BalanceSum {
+    MockFractionalNFT fractional;
+    uint256 public sum;
+
+    constructor(MockFractionalNFT _token) {
+        fractional = _token;
+    }
+
+    function mint(address from, uint256 amount) public {
+        fractional.mint(from, amount);
+        sum += amount;
+    }
+
+    function burn(address from, uint256 amount) public {
+        fractional.burn(from, amount);
+        sum -= amount;
+    }
+
+    function approve(address to, uint256 amount) public {
+        fractional.approve(to, amount);
+    }
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public {
+        fractional.transferFrom(from, to, amount);
+    }
+
+    function transfer(address to, uint256 amount) public {
+        fractional.transfer(to, amount);
+    }
+}
+
+contract ERC1155Recipient is ERC1155 {
+    address public operator;
+    address public from;
+    uint256 public id;
+    uint256 public amount;
+    bytes public mintData;
+
+    constructor() ERC1155("URI"){}
+
+    function onERC1155Received(
+        address _operator,
+        address _from,
+        uint256 _id,
+        uint256 _amount,
+        bytes calldata _data
+    ) public returns (bytes4) {
+        operator = _operator;
+        from = _from;
+        id = _id;
+        amount = _amount;
+        mintData = _data;
+
+        return IERC1155Receiver.onERC1155Received.selector;
+    }
+
+    address public batchOperator;
+    address public batchFrom;
+    uint256[] internal _batchIds;
+    uint256[] internal _batchAmounts;
+    bytes public batchData;
+
+    function batchIds() external view returns (uint256[] memory) {
+        return _batchIds;
+    }
+
+    function batchAmounts() external view returns (uint256[] memory) {
+        return _batchAmounts;
+    }
+
+    function onERC1155BatchReceived(
+        address _operator,
+        address _from,
+        uint256[] calldata _ids,
+        uint256[] calldata _amounts,
+        bytes calldata _data
+    ) external returns (bytes4) {
+        batchOperator = _operator;
+        batchFrom = _from;
+        _batchIds = _ids;
+        _batchAmounts = _amounts;
+        batchData = _data;
+
+        return IERC1155Receiver.onERC1155BatchReceived.selector;
+    }
+}
+

@@ -126,6 +126,8 @@ contract FractionalNFT is ERC20, IERC1155, ERC165 {
     function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external override {
         require(id == 0);
         transferFrom(from, to, amount);
+
+        _doSafeTransferAcceptanceCheck(msg.sender, from, to, id, amount, data);
     }
 
     function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external override {
@@ -137,6 +139,8 @@ contract FractionalNFT is ERC20, IERC1155, ERC165 {
         );
 
         transferFrom(from, to, amounts[0]);
+
+        _doSafeBatchTransferAcceptanceCheck(msg.sender, from, to, ids, amounts, data);
     }
 
     function _transfer(address from, address to, uint256 amount) internal override {
