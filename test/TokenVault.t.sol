@@ -22,6 +22,7 @@ contract TokenVaultTest is Test {
     NFTCollection public collection;
     TokenVault public tokenVault;
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
     event Fractionalized(address indexed collection, address indexed token);
     event Redeemed(
         address indexed sender,
@@ -539,5 +540,50 @@ contract TokenVaultTest is Test {
         vm.startPrank(owner);
         vm.expectRevert("Fractionalized NFT has not been bought out");
         tokenVault.claim();
+    }
+
+    function testPurchaseWithFeeWorks() public {
+    vm.prank(owner);
+        collection.mint(
+            address(tokenVault),
+            tokenUri,
+            address(tokenVault),
+            250
+        );
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(
+            address(tokenVault),
+            address(collection),
+            tokenId,
+            supply
+        );
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint256 start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.startPrank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+        
+        uint fee = 1000;    // 10%
+        tokenVault.updateFee(fee);
+        assertEq(tokenVault.fee(), fee);        
+        vm.stopPrank();
+
+        vm.warp(start + 5);
+        uint8 amount = 1;
+        hoax(user, 10 ether);
+        vm.expectCall(
+            address(tokenVault),
+            abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{ value: 0.11 ether }(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
     }
 }

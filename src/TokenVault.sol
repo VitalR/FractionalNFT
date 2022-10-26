@@ -20,7 +20,7 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     /// @notice The address who initially deposited the NFT.
     address public curator;
 
-    /// @notice The platform fee paid to the curator.
+    /// @notice The platform fee paid to the curator, percentage bps (using 2 decimals - 10000 = 100, 0 = 0), eg 495 == 4.95%.
     uint256 public fee;
 
     /// @notice The start date of primary sale.
@@ -28,6 +28,9 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
 
     /// @notice The end date of primary sale.
     uint256 public end;
+
+    /// @dev Max bps in the System.
+    uint128 private constant MAX_BPS = 10_000;
 
     /// @notice A boolean to indicate if the vault has closed.
     bool public vaultClosed;
@@ -65,6 +68,11 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     /// @param sender The address that the user held ERC20 tokens for (i.e., the address that called claim()).
     /// @param amount The amount of ether claimded.
     event Claimed(address indexed sender, uint256 indexed amount);
+
+    /// @notice Emitted when the curator change curator account address.
+    event UpdateCurator(address indexed curator);
+    /// @notice Emitted when the curator change their fee.
+    event UpdateFee(uint256 fee);
 
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol, string memory _uri) FractionalNFT(_name, _symbol, _uri) {
         require(_curator != address(0), "Set the zero address");
@@ -114,11 +122,16 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     /// @param _amount The amount of the fractions of fractional nft.
     function purchase(uint256 _amount) external payable nonReentrant {
         require(state == State.live, "The state should be fractionalized");
-        require((_amount * listPrice) == msg.value, "Not enough ether sent");
-        require(block.timestamp >= start, "The primary sale is not started");
-        if (end > 0) {
-            require(block.timestamp < end, "The primary sale is already finished");
+        require(block.timestamp > start, "The primary sale is not started");
+        if (end > 0) require(block.timestamp < end, "The primary sale is already finished");
+
+        if (fee > 0) {
+            uint256 feeAmount = ((_amount * listPrice) * fee) / MAX_BPS;
+            require(((_amount * listPrice) + feeAmount) == msg.value, "Insufficient value sent");
+        } else {
+            require((_amount * listPrice) == msg.value, "Not enough ether sent");
         }
+
         uint256 _supply = balanceOf(address(this));
         require(_amount <= _supply, "Exceeds the total supply");
         _transfer(address(this), _msgSender(), _amount);
@@ -171,6 +184,22 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
         require(success, "Claim failed");
 
         emit Claimed(_msgSender(), claimAmountWei);
+    }
+
+    /// @notice Allow curator to update the curator address.
+    /// @param _curator new curator address.
+    function updateCurator(address _curator) external {
+        require(_msgSender() == curator, "ANG: not curator");
+        curator = _curator;
+        emit UpdateCurator(_curator);
+    }
+
+    /// @notice Allow the curator to change their fee.
+    /// @param _fee The new fee.
+    function updateFee(uint256 _fee) external {
+        require(_msgSender() == curator, "ANG: not curator");
+        fee = _fee;
+        emit UpdateFee(_fee);
     }
 
     /// @dev Returns the reserve price of Fractional NFT.
