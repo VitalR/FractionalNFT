@@ -543,7 +543,7 @@ contract TokenVaultTest is Test {
     }
 
     function testPurchaseWithFeeWorks() public {
-    vm.prank(owner);
+        vm.prank(owner);
         collection.mint(
             address(tokenVault),
             tokenUri,
@@ -585,5 +585,51 @@ contract TokenVaultTest is Test {
         tokenVault.purchase{ value: 0.11 ether }(amount);
         assertEq(tokenVault.balanceOf(address(user)), amount);
         assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
+    }
+
+    function testPurchaseWithFeeFails() public {
+        vm.prank(owner);
+        collection.mint(
+            address(tokenVault),
+            tokenUri,
+            address(tokenVault),
+            250
+        );
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(
+            address(tokenVault),
+            address(collection),
+            tokenId,
+            supply
+        );
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint256 start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.startPrank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+        
+        uint fee = 1000;    // 10%
+        tokenVault.updateFee(fee);
+        assertEq(tokenVault.fee(), fee);        
+        vm.stopPrank();
+
+        vm.warp(start + 5);
+        uint8 amount = 1;
+        hoax(user, 10 ether);
+        vm.expectCall(
+            address(tokenVault),
+            abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        vm.expectRevert("Insufficient value sent");
+        tokenVault.purchase{ value: 0.10 ether }(amount);
+        assertEq(tokenVault.balanceOf(address(user)), 0);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply);
     }
 }
