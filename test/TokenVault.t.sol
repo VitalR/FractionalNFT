@@ -22,6 +22,9 @@ contract TokenVaultTest is Test {
     NFTCollection public collection;
     TokenVault public tokenVault;
 
+    address[] public payees = [address(curator)];
+    uint256[] public shares = [100];
+
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Fractionalized(address indexed collection, address indexed token);
     event Redeemed(
@@ -35,6 +38,7 @@ contract TokenVaultTest is Test {
         uint256 indexed tokenId
     );
     event Claimed(address indexed sender, uint256 indexed amount);
+    event Withdraw(address indexed caller, uint256 indexed value);
 
     function setUp() public {
         owner = address(this);
@@ -631,5 +635,59 @@ contract TokenVaultTest is Test {
         tokenVault.purchase{ value: 0.10 ether }(amount);
         assertEq(tokenVault.balanceOf(address(user)), 0);
         assertEq(tokenVault.balanceOf(address(tokenVault)), supply);
+    }
+
+    function testPaySplitterWithdrawWorks() public {
+        vm.prank(owner);
+        collection.mint(
+            address(tokenVault),
+            tokenUri,
+            address(tokenVault),
+            250
+        );
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(
+            address(tokenVault),
+            address(collection),
+            tokenId,
+            supply
+        );
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint256 start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.startPrank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+        
+        uint fee = 1000;    // 10%
+        tokenVault.updateFee(fee);
+        assertEq(tokenVault.fee(), fee);        
+        vm.stopPrank();
+
+        vm.warp(start + 5);
+        uint8 amount = 100;
+        hoax(user, 12 ether);
+        vm.expectCall(
+            address(tokenVault),
+            abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{ value: 11 ether }(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
+
+        tokenVault.setPaymentSplitter(payees, shares);
+
+        vm.prank(curator);
+        vm.expectEmit(true, false, false, true);
+        emit Withdraw(address(curator), 11 ether);
+        tokenVault.withdraw();
+
+        assertEq(address(curator).balance, 11 ether);
     }
 }

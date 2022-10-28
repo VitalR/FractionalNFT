@@ -6,8 +6,9 @@ import "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "./FractionalNFT.sol";
+import "./utils/Splitter.sol";
 
-contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
+contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
     /// @notice The ERC721 token address of the fractional NFT.
     address public collection;
 
@@ -73,6 +74,8 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     event UpdateCurator(address indexed curator);
     /// @notice Emitted when the curator change their fee.
     event UpdateFee(uint256 fee);
+    /// @notice Emitted when the curator successfully withdraw funds from the vault.
+    event Withdraw(address indexed caller, uint256 indexed value);
 
     constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol, string memory _uri) FractionalNFT(_name, _symbol, _uri) {
         require(_curator != address(0), "Set the zero address");
@@ -186,10 +189,15 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
         emit Claimed(_msgSender(), claimAmountWei);
     }
 
+    /// @dev Returns the reserve price of Fractional NFT.
+    function reservePrice() public view returns (uint256) {
+        return listPrice * totalSupply();
+    }
+
     /// @notice Allow curator to update the curator address.
     /// @param _curator new curator address.
     function updateCurator(address _curator) external {
-        require(_msgSender() == curator, "ANG: not curator");
+        require(_msgSender() == curator, "Not curator");
         curator = _curator;
         emit UpdateCurator(_curator);
     }
@@ -197,14 +205,25 @@ contract TokenVault is FractionalNFT, Ownable, ReentrancyGuard {
     /// @notice Allow the curator to change their fee.
     /// @param _fee The new fee.
     function updateFee(uint256 _fee) external {
-        require(_msgSender() == curator, "ANG: not curator");
+        require(_msgSender() == curator, "Not curator");
         fee = _fee;
         emit UpdateFee(_fee);
     }
 
-    /// @dev Returns the reserve price of Fractional NFT.
-    function reservePrice() public view returns (uint256) {
-        return listPrice * totalSupply();
+    /// @dev Creates an instance of `PaymentSplitter` where each account in `payees` is assigned the number of shares at
+    ///      the matching position in the `shares` array.
+    function setPaymentSplitter(address[] calldata _payees, uint256[] calldata _shares) external {
+        require(_msgSender() == curator || _msgSender() == owner(), "Neither curator nor owner");
+        _setPaymentSplitter(_payees, _shares);
+    }
+
+    /// @notice Withdraw ether from this contract to all of the payees.
+    function withdraw() external {
+        require(address(this).balance > 0, "No balance to withdraw");
+        require(_msgSender() == curator, "Not curator");
+        require(_payees.length > 0, "No payees");
+        _distribute();
+        emit Withdraw(_msgSender(), address(this).balance);
     }
 
     /// @dev Required to use safeTransferFrom() from OpenZeppelin's ERC721 contract (when transferring NFTs to this contract).
