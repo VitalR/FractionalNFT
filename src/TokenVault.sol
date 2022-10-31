@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import "openzeppelin-contracts/access/Ownable.sol";
+import "openzeppelin-contracts/token/ERC721/IERC721.sol";
+import "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
+import "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import "./FractionalNFT.sol";
 import "./utils/Splitter.sol";
 

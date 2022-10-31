@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "lib/openzeppelin-contracts/contracts/utils/Address.sol";
-import "lib/openzeppelin-contracts/contracts/utils/Context.sol";
+import "openzeppelin-contracts/utils/Address.sol";
+import "openzeppelin-contracts/utils/Context.sol";
 
 /**
  * @title PaymentSplitter

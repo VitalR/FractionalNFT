@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "openzeppelin-contracts/access/Ownable.sol";
+import "openzeppelin-contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "./ERC2981/ERC2981.sol";
 
 contract NFTCollection is ERC721URIStorage, ERC2981, Ownable {
