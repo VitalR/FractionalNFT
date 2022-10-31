@@ -690,4 +690,69 @@ contract TokenVaultTest is Test {
 
         assertEq(address(curator).balance, 11 ether);
     }
+
+    function testPaySplitterNotSetWithdrawFails() public {
+         vm.prank(owner);
+        collection.mint(
+            address(tokenVault),
+            tokenUri,
+            address(tokenVault),
+            250
+        );
+        assertEq(collection.balanceOf(address(tokenVault)), 1);
+        vm.expectEmit(true, true, false, true);
+        emit Fractionalized(address(collection), address(tokenVault));
+        tokenVault.fractionalize(
+            address(tokenVault),
+            address(collection),
+            tokenId,
+            supply
+        );
+        assertEq(tokenVault.totalSupply(), supply);
+        assertEq(tokenVault.balanceOf(address(curator)), supply);
+        uint256 start = block.timestamp + 1;
+        tokenVault.configureSale(start, 0, price);
+        assertEq(tokenVault.start(), start);
+        assertEq(tokenVault.end(), 0);
+        assertEq(tokenVault.listPrice(), price);
+
+        vm.startPrank(curator);
+        tokenVault.transfer(address(tokenVault), supply);
+        
+        uint fee = 1000;    // 10%
+        tokenVault.updateFee(fee);
+        assertEq(tokenVault.fee(), fee);        
+        vm.stopPrank();
+
+        vm.warp(start + 5);
+        uint8 amount = 100;
+        hoax(user, 12 ether);
+        vm.expectCall(
+            address(tokenVault),
+            abi.encodeCall(tokenVault.purchase, (amount))
+        );
+        tokenVault.purchase{ value: 11 ether }(amount);
+        assertEq(tokenVault.balanceOf(address(user)), amount);
+        assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
+
+        // tokenVault.setPaymentSplitter(payees, shares);
+
+        vm.prank(curator);
+        vm.expectRevert("No payees");
+        tokenVault.withdraw();
+    }
+
+    function testPaySplitterDiffLengthWithdrawFails() public {
+        payees = [address(curator), address(3), address(4)];
+        shares = [70, 10, 10, 10];
+        
+        vm.startPrank(curator);
+        vm.expectRevert("PaymentSplitter: payees and shares length mismatch");
+        tokenVault.setPaymentSplitter(payees, shares);
+
+        payees.push(address(5));
+        shares.pop();
+        vm.expectRevert("PaymentSplitter: payees and shares length mismatch");
+        tokenVault.setPaymentSplitter(payees, shares);
+    }
 }
