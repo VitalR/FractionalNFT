@@ -8,6 +8,8 @@ import "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import "./FractionalNFT.sol";
 import "./utils/Splitter.sol";
 
+/// @title TokenVault - NFT Fractionalizer with Purchase, Redeem and Buyout Functionality.
+/// @notice This is where NFT is housed and fractional ownership is tracked.
 contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
     /// @notice The ERC721 token address of the fractional NFT.
     address public collection;
@@ -123,6 +125,7 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
 
     /// @notice Allows an account to purchase vault fraction tokens.
     /// @param _amount The amount of the fractions of fractional nft.
+    /// @dev Note, the ERC20 should be transferred to the TokenVault contract before calling purchase().
     function purchase(uint256 _amount) external payable nonReentrant {
         require(state == State.live, "The state should be fractionalized");
         require(block.timestamp > start, "The primary sale is not started");
@@ -153,7 +156,6 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
             "Redeemer does not hold the entire supply"
         );
         state = State.redeemed;
-        // _transfer(_msgSender(), address(this), redeemerBalance);
         _burn(_msgSender(), totalSupply());
         IERC721(collection).safeTransferFrom(address(this), _msgSender(), tokenId);
 
@@ -162,7 +164,6 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
 
     /// @notice Allows an account to buy the NFT from the contract for the specified buyout price.
     function buyout() external payable {
-        uint256 fractionsAmount = totalSupply();
         uint256 buyoutPrice = reservePrice();
         require(msg.value >= buyoutPrice, "Sender sent less than the buyout price");
         state = State.boughtOut;
@@ -177,7 +178,6 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
         require(state == State.boughtOut, "Fractionalized NFT has not been bought out");
         uint256 claimerBalance = balanceOf(_msgSender());
         require(claimerBalance > 0, "Claimer does not hold any tokens");
-        // _transfer(_msgSender, address(this), claimerBalance);
 
         uint256 fractionsAmount = totalSupply();
         uint256 buyoutPrice = reservePrice();
