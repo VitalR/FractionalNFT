@@ -1,5 +1,4 @@
 ## Fractional NFT Project
----
 
 ### About this repo
 It is a [Foundry](https://book.getfoundry.sh/) repo with Solidity tests powered by the [ds-test library](https://github.com/dapphub/ds-test/).
