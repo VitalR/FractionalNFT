@@ -16,3 +16,5 @@ out/
 .github/
 .env
 draft
+
+.notes

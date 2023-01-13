@@ -2,10 +2,10 @@
 pragma solidity ^0.8.14;
 
 import "forge-std/Test.sol";
-import "./mocks/MockFractionalNFT.sol";
-import "./utils/DSTestPlus.sol";
-import "./utils/DSInvariantTest.sol";
-import "./utils/Hevm.sol";
+import "test/mocks/MockFractionalNFT.sol";
+import "test/utils/DSTestPlus.sol";
+import "test/utils/DSInvariantTest.sol";
+import "test/utils/Hevm.sol";
 
 import "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Receiver.sol";
