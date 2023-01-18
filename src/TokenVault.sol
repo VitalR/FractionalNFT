@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/token/ERC721/IERC721.sol";
 import "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
 import "openzeppelin-contracts/security/ReentrancyGuard.sol";
@@ -10,7 +9,7 @@ import "./utils/Splitter.sol";
 
 /// @title TokenVault - NFT Fractionalizer with Purchase, Redeem and Buyout Functionality.
 /// @notice This is where NFT is housed and fractional ownership is tracked.
-contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
+contract TokenVault is FractionalNFT, Splitter, ReentrancyGuard {
     /// @notice The ERC721 token address of the fractional NFT.
     address public collection;
 
@@ -79,7 +78,19 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
     /// @notice Emitted when the curator successfully withdraw funds from the vault.
     event Withdraw(address indexed caller, uint256 indexed value);
 
-    constructor(address _curator, uint256 _fee, string memory _name, string memory _symbol, string memory _uri) FractionalNFT(_name, _symbol, _uri) {
+    /// @notice Token vault's constructor
+    /// @param _curator The address who initially deposited the NFT
+    /// @param _fee The platform fee paid to the curator
+    /// @param _name The desired name of the vault
+    /// @param _symbol The desired sumbol of the vault
+    /// @param _uri The URI for all tokens
+    constructor(
+        address _curator,
+        uint256 _fee,
+        string memory _name,
+        string memory _symbol,
+        string memory _uri
+    ) FractionalNFT(_name, _symbol, _uri) {
         require(_curator != address(0), "Set the zero address");
         curator = _curator;
         fee = _fee;
@@ -88,22 +99,21 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
 
     /// @notice Create a fractionalized NFT: Lock the NFT in the contract; create a new ERC20 token, as specified;
     ///         and transfer the total supply of the token to the curator.
-    /// @param _from The address of the curator/NFT owner.
+    /// @param _to The address of the curator/NFT owner.
     /// @param _collection The address of the NFT that is to be fractionalized.
     /// @param _tokenId The token ID of the NFT that is to be fractionalized.
     /// @param _supply The count of fractions of the fractionalized NFT - the total supply amount of vault ERC20 tokens.
     /// @dev Note the NFT must be approved for transfer by the owner of NFT token ID.
     function fractionalize(
-        address _from,
+        address _to,
         address _collection,
         uint256 _tokenId,
         uint256 _supply
-    ) external onlyOwner {
+    ) public {
         require(state == State.inactive, "State should be inactive");
         collection = _collection;
         tokenId = _tokenId;
-        IERC721(collection).safeTransferFrom(_from, address(this), _tokenId);
-        _mint(curator, _supply);
+        _mint(_to, _supply);
         state = State.fractionalized;
 
         emit Fractionalized(collection, address(this));
@@ -113,7 +123,7 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
     /// @param _start The start date of primary sale.
     /// @param _end The end date of primary sale.
     /// @param _price The new listing price per fraction.
-    function configureSale(uint256 _start, uint256 _end, uint256 _price) external onlyOwner {
+    function configureSale(uint256 _start, uint256 _end, uint256 _price) external {
         require(state == State.fractionalized, "The state should be fractionalized");
         require(_start >= block.timestamp, "The start primary sale should be set up");
         require(_price > 0, "The listing price should be > 0");
@@ -213,7 +223,7 @@ contract TokenVault is FractionalNFT, Splitter, Ownable, ReentrancyGuard {
     /// @dev Creates an instance of `PaymentSplitter` where each account in `payees` is assigned the number of shares at
     ///      the matching position in the `shares` array.
     function setPaymentSplitter(address[] calldata _payees, uint256[] calldata _shares) external {
-        require(_msgSender() == curator || _msgSender() == owner(), "Neither curator nor owner");
+        require(_msgSender() == curator, "Neither curator nor owner");
         _setPaymentSplitter(_payees, _shares);
     }
 
