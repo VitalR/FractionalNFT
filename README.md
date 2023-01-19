@@ -1,4 +1,5 @@
 ## Fractional NFT Project
+NFT Fractionalizer with Purchase, Redeem and Buyout Functionality
 
 ### About this repo
 It is a [Foundry](https://book.getfoundry.sh/) repo with Solidity tests powered by the [ds-test library](https://github.com/dapphub/ds-test/).
@@ -21,7 +22,7 @@ ETHERSCAN_API_KEY=''
 INFURA_API_KEY=''
 ```
 
-### Deployment & Verification on Goerli
+### Deployment & Verification
 
 NFTCollection:
 ```
