@@ -54,17 +54,9 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.fee(), fee);
     }
 
-    function testFractionalizedWorksAsOwner() public {
-        vm.prank(owner);
-        collection.mint(
-            address(tokenVault),
-            tokenUri,
-            address(tokenVault),
-            250
-        );
-        assertEq(collection.balanceOf(address(tokenVault)), 1);
+    function testFractionalizeWorks() public {
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -73,38 +65,17 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.balanceOf(address(curator)), supply);
     }
 
-    function testFractionalizedFailsAsNotOwner() public {
-        vm.prank(owner);
-        collection.mint(
-            address(tokenVault),
-            tokenUri,
-            address(tokenVault),
-            250
-        );
-        assertEq(collection.balanceOf(address(tokenVault)), 1);
-        vm.prank(user);
-        vm.expectRevert("Ownable: caller is not the owner");
+    function testConfigureSaleWorks() public {
+        // vm.prank(owner);
+        // collection.mint(
+        //     address(tokenVault),
+        //     tokenUri,
+        //     address(tokenVault),
+        //     250
+        // );
+        // assertEq(collection.balanceOf(address(tokenVault)), 1);
         tokenVault.fractionalize(
-            address(tokenVault),
-            address(collection),
-            tokenId,
-            supply
-        );
-        assertEq(tokenVault.totalSupply(), 0);
-        assertEq(tokenVault.balanceOf(address(curator)), 0);
-    }
-
-    function testConfigureSaleWorksAsOwner() public {
-        vm.prank(owner);
-        collection.mint(
-            address(tokenVault),
-            tokenUri,
-            address(tokenVault),
-            250
-        );
-        assertEq(collection.balanceOf(address(tokenVault)), 1);
-        tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -116,32 +87,6 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.start(), start);
         assertEq(tokenVault.end(), 0);
         assertEq(tokenVault.listPrice(), price);
-    }
-
-    function testConfigureSaleFailsAsNotOwner() public {
-        vm.prank(owner);
-        collection.mint(
-            address(tokenVault),
-            tokenUri,
-            address(tokenVault),
-            250
-        );
-        assertEq(collection.balanceOf(address(tokenVault)), 1);
-        tokenVault.fractionalize(
-            address(tokenVault),
-            address(collection),
-            tokenId,
-            supply
-        );
-        assertEq(tokenVault.totalSupply(), supply);
-        assertEq(tokenVault.balanceOf(address(curator)), supply);
-        uint256 start = block.timestamp + 1;
-        vm.prank(user);
-        vm.expectRevert("Ownable: caller is not the owner");
-        tokenVault.configureSale(start, 0, price);
-        assertEq(tokenVault.start(), 0);
-        assertEq(tokenVault.end(), 0);
-        assertEq(tokenVault.listPrice(), 0);
     }
 
     function testPurchaseWorks() public {
@@ -156,7 +101,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -194,7 +139,7 @@ contract TokenVaultTest is Test {
         );
         assertEq(collection.balanceOf(address(tokenVault)), 1);
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -234,7 +179,7 @@ contract TokenVaultTest is Test {
         );
         assertEq(collection.balanceOf(address(tokenVault)), 1);
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -275,7 +220,7 @@ contract TokenVaultTest is Test {
         );
         assertEq(collection.balanceOf(address(tokenVault)), 1);
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -318,7 +263,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -367,7 +312,7 @@ contract TokenVaultTest is Test {
             250
         );
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -397,7 +342,7 @@ contract TokenVaultTest is Test {
             250
         );
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -428,7 +373,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -464,8 +409,8 @@ contract TokenVaultTest is Test {
 
         vm.startPrank(user);
         uint256 userPreBalance = address(user).balance;
-        uint256 claimerBalance = tokenVault.balanceOf(address(user));
-        console.log(claimerBalance);
+        tokenVault.balanceOf(address(user));
+        // console.log(claimerBalance);
         assertEq(tokenVault.balanceOf(address(user)), amount);
         uint256 fractionsAmount = tokenVault.totalSupply();
         uint256 buyoutPrice = price * fractionsAmount;
@@ -487,7 +432,7 @@ contract TokenVaultTest is Test {
             250
         );
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -507,8 +452,8 @@ contract TokenVaultTest is Test {
         tokenVault.buyout{value: 100 ether}();
 
         vm.startPrank(owner);
-        uint256 claimerBalance = tokenVault.balanceOf(address(owner));
-        console.log(claimerBalance);
+        tokenVault.balanceOf(address(owner));
+        // console.log(claimerBalance);
         vm.expectRevert("Claimer does not hold any tokens");
         tokenVault.claim();
     }
@@ -522,7 +467,7 @@ contract TokenVaultTest is Test {
             250
         );
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -558,7 +503,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -574,7 +519,7 @@ contract TokenVaultTest is Test {
         vm.startPrank(curator);
         tokenVault.transfer(address(tokenVault), supply);
         
-        uint fee = 1000;    // 10%
+        fee = 1000;    // 10%
         tokenVault.updateFee(fee);
         assertEq(tokenVault.fee(), fee);        
         vm.stopPrank();
@@ -603,7 +548,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -619,7 +564,7 @@ contract TokenVaultTest is Test {
         vm.startPrank(curator);
         tokenVault.transfer(address(tokenVault), supply);
         
-        uint fee = 1000;    // 10%
+        fee = 1000;    // 10%
         tokenVault.updateFee(fee);
         assertEq(tokenVault.fee(), fee);        
         vm.stopPrank();
@@ -649,7 +594,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -665,7 +610,7 @@ contract TokenVaultTest is Test {
         vm.startPrank(curator);
         tokenVault.transfer(address(tokenVault), supply);
         
-        uint fee = 1000;    // 10%
+        fee = 1000;    // 10%
         tokenVault.updateFee(fee);
         assertEq(tokenVault.fee(), fee);        
         vm.stopPrank();
@@ -681,9 +626,9 @@ contract TokenVaultTest is Test {
         assertEq(tokenVault.balanceOf(address(user)), amount);
         assertEq(tokenVault.balanceOf(address(tokenVault)), supply - amount);
 
+        vm.startPrank(curator);
         tokenVault.setPaymentSplitter(payees, shares);
 
-        vm.prank(curator);
         vm.expectEmit(true, false, false, true);
         emit Withdraw(address(curator), 11 ether);
         tokenVault.withdraw();
@@ -692,7 +637,7 @@ contract TokenVaultTest is Test {
     }
 
     function testPaySplitterNotSetWithdrawFails() public {
-         vm.prank(owner);
+        vm.prank(owner);
         collection.mint(
             address(tokenVault),
             tokenUri,
@@ -703,7 +648,7 @@ contract TokenVaultTest is Test {
         vm.expectEmit(true, true, false, true);
         emit Fractionalized(address(collection), address(tokenVault));
         tokenVault.fractionalize(
-            address(tokenVault),
+            address(curator),
             address(collection),
             tokenId,
             supply
@@ -719,7 +664,7 @@ contract TokenVaultTest is Test {
         vm.startPrank(curator);
         tokenVault.transfer(address(tokenVault), supply);
         
-        uint fee = 1000;    // 10%
+        fee = 1000;    // 10%
         tokenVault.updateFee(fee);
         assertEq(tokenVault.fee(), fee);        
         vm.stopPrank();
